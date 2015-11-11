@@ -25,7 +25,7 @@
 namespace Adoy\FastCGI;
 
 class TimedOutException extends \Exception {}
-class ForbiddenException extends \Exception {}
+class DisconnectException extends \Exception {}
 
 /**
  * Handles communication with a FastCGI application
@@ -566,7 +566,7 @@ class Client
             if ($info['unread_bytes'] == 0
                     && $info['blocked']
                     && $info['eof']) {
-                throw new ForbiddenException('Not in white list. Check listen.allowed_clients.');
+                throw new DisconnectException('The connection was terminated. It\'s possible that we are not in white list. Check listen.allowed_clients in the server configuration.');
             }
 
             throw new \Exception('Read failed');
