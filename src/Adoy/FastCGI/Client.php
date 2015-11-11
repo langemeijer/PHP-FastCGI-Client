@@ -26,6 +26,7 @@ namespace Adoy\FastCGI;
 
 class TimedOutException extends \Exception {}
 class ForbiddenException extends \Exception {}
+class ReadException extends \Exception {}
 
 /**
  * Handles communication with a FastCGI application
@@ -379,23 +380,44 @@ class Client
      */
     private function readPacket()
     {
-        if ($packet = fread($this->_sock, self::HEADER_LEN)) {
-            $resp = $this->decodePacketHeader($packet);
-            $resp['content'] = '';
-            if ($resp['contentLength']) {
-                $len  = $resp['contentLength'];
-                while ($len && $buf=fread($this->_sock, $len)) {
-                    $len -= strlen($buf);
-                    $resp['content'] .= $buf;
-                }
-            }
-            if ($resp['paddingLength']) {
-                $buf = fread($this->_sock, $resp['paddingLength']);
-            }
-            return $resp;
-        } else {
-            return false;
+        $packet = $this->readString(self::HEADER_LEN);
+
+        $resp = $this->decodePacketHeader($packet);
+
+        $resp['content'] = '';
+        if ($resp['contentLength']) {
+            $resp['content'] = $this->readString($resp['contentLength']);
         }
+
+        if ($resp['paddingLength']) {
+            $this->readString($resp['paddingLength']);
+        }
+
+        return $resp;
+    }
+
+    /**
+     * Read EXACTLY $length bytes from our socket connection.
+     * This is different from plain fread() because fread() reads UP TO $length bytes
+     *
+     * Only works correctly on blocking sockets. Will max out CPU if used on a non-blocking socket.
+     *
+     * @param $length int bytes to read
+     * @return string
+     * @throws ReadException when a socket reading error occurs
+     */
+    private function readString($length)
+    {
+        $string = '';
+        while ($length > 0) {
+            $buf = fread($this->_sock, $length);
+            if ($buf === false) {
+                throw new ReadException();
+            }
+            $length -= strlen($buf);
+            $string .= $buf;
+        }
+        return $string;
     }
 
     /**
